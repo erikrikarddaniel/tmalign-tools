@@ -5,6 +5,8 @@ chdir $ROOT/scripts
 screen -t scripts
 chdir $ROOT/test
 screen -t test
+chdir $ROOT/conda
+screen -t conda
 chdir $ROOT
 screen -t rstudio
 screen -t man

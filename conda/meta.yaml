@@ -1,0 +1,19 @@
+{% set version = "0.1" %}
+
+package:
+  name: tmalign-tools
+  version: {{ version }}
+
+source:
+  url: https://github.com/erikrikarddaniel/tmalign-tools/archive/v{{ version }}.tar.gz
+
+build:
+  noarch: generic
+
+requirements:
+  build:
+    - python
+    - setuptools
+
+  run:
+    - ruby >=2.7
