@@ -1,0 +1,11 @@
+sessionname tmalign-tools
+setenv ROOT $PWD
+# __INSERTPOINT__ This line allows a script to insert new configuration lines here.
+chdir $ROOT/scripts
+screen -t scripts
+chdir $ROOT/test
+screen -t test
+chdir $ROOT
+screen -t rstudio
+screen -t man
+screen -t root

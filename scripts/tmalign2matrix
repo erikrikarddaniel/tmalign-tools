@@ -1,0 +1,209 @@
+#!/usr/bin/env ruby
+#
+# = NAME
+#
+# tmalign2matrix
+#
+# = SYNOPSIS
+#
+# See below, in opt parser block.
+#
+# = USAGE
+#
+# See below, in opt parser block.
+#
+# = AUTHOR
+#
+# daniel.lundin@scilifelab.se
+
+$VERBOSE = true
+
+require 'optparse'
+
+FORMATS = {
+  'splitstree' => { 
+    'call' => :splitstree_call, 
+    'desc' => 'SplitsTree Nexus matrix',
+    'mandopts' => [ ]
+  },
+}
+DEFAULT_FORMAT = 'splitstree'
+
+TRANSFORMS = {
+  'inverse' => {
+    'call' => :inverse_transform,
+    'desc' => 'Distance: inverse similarity TM score',
+    'mandopts' => [ ]
+  },
+  'minus' => {
+    'call' => :minus_transform,
+    'desc' => 'Distance: 1 minus TM similarity score',
+    'mandopts' => [ ]
+  },
+}
+DEFAULT_TRANSFORM = 'minus'
+
+def formats(format = false)
+  if format and FORMATS[format]
+    "#{format}: #{FORMATS[format]['desc']}\n"
+  elsif format and format != ''
+    "Format #{format} not supported\n"
+  else
+    "Supported formats:\n\t" + FORMATS.keys.sort.map { |f| "#{f}#{ f == DEFAULT_FORMAT ? ' * default *' : ''}" }.join("\n\t") + "\n"
+  end
+end
+
+def transforms(transform = false)
+  if transform and TRANSFORMS[transform]
+    "#{transform}: #{TRANSFORMS[transform]['desc']}\n"
+  elsif transform and transform != ''
+    "Format #{transform} not supported\n"
+  else
+    "Supported transforms:\n\t" + TRANSFORMS.keys.sort.map { |f| "#{f}#{ f == DEFAULT_TRANSFORM ? ' * default *' : ''}" }.join("\n\t") + "\n"
+  end
+end
+
+@options = {
+  :format => DEFAULT_FORMAT,
+  :transform => DEFAULT_TRANSFORM
+}
+opt_parser = OptionParser.new do |opts|
+  opts.banner = <<BANNER
+tmalign2matrix: Converts a set of output files (stdout) from TMalign to matrices (currently only SplitsTree format).
+  Input files must have the names of structures in the names, separated by a '-'.
+
+  tmalign2matrix [options] strct0-strct1.tmalign strct1-strct2.tmalign ... strctm-strctn.tmalign
+BANNER
+
+  opts.on "--format=format", "Output format, default #{DEFAULT_FORMAT}"  do |v| 
+    @options[:format] = v 
+  end
+
+  opts.on "--formats[=v]", "Lists available output formats or, with a format as parameter, writes a description of a format"  do |v|
+    puts formats v 
+    exit 0
+  end
+
+  opts.on "-h", "--help", "This info"  do 
+    puts opts
+    exit 0
+  end
+
+  opts.on "--transform=transform", "Transformation of EC value to perform, default #{DEFAULT_TRANSFORM}" do |v|
+    @options[:transform] = v
+  end
+
+  opts.on "--transforms[=v]", "Lists available output transforms or, with a transform as parameter, writes a description of a transform"  do |v|
+    puts transforms v 
+    exit 0
+  end
+
+  opts.on "-v", "--verbose", "Be verbose"  do |v| 
+    @options[:verbose] = v 
+  end
+end
+
+begin
+  opt_parser.parse!
+  mandatory = FORMATS[@options[:format]]['mandopts'] + TRANSFORMS[@options[:transform]]['mandopts']
+  missing = mandatory.select { |param| @options[param].nil? }
+  unless missing.empty?
+    warn "Missing options: #{missing.map { |m| "--#{m}" }.join(", ")}"
+    warn opt_parser
+    exit 1
+  end
+rescue OptionParser::InvalidOption, OptionParser::MissingArgument
+  warn "#{$!}"
+  warn opt_parser
+  exit 1
+end
+
+def inverse_transform(value)
+  1.0/value.to_f
+end
+
+def minus_transform(value)
+  1 - value.to_f
+end
+
+def splitstree_call()
+  str = <<NEXUS
+#nexus
+
+BEGIN Taxa;
+DIMENSIONS ntax=#{@results.keys.length};
+TAXLABELS
+NEXUS
+
+  @order.each_with_index do |taxon, i|
+    str += "[#{i + 1}] '#{taxon}'\n"
+  end
+  str += <<NEXUS
+;
+END; [Taxa]
+
+BEGIN Distances;
+DIMENSIONS ntax=#{@results.keys.length};
+FORMAT labels=left diagonal triangle=both;
+MATRIX
+NEXUS
+  
+  @order.each_with_index do |outer_t, i|
+    str += "[#{i + 1}] '#{outer_t}' "
+    @order.each do |inner_t|
+      if outer_t == inner_t
+	str += "0.0 "
+      else
+	str += "#{@results[outer_t][inner_t]} "
+      end
+    end
+    str += "\n"
+  end
+
+  str += <<NEXUS
+;
+END; [Distances]
+NEXUS
+
+  puts str
+end
+
+unless FORMATS.keys.find { |f| f == @options[:format] }
+  warn "Format #{@options[:format]} unsupported"
+  warn formats
+  exit 1
+end
+
+# Loop over infiles
+@results = { }
+@order = [ ]
+begin
+  ARGV.each do |file|
+    pair = file[/(.*)\..*/, 1].split('-')
+    warn "Parsing #{file}, pair: #{pair.join(', ')}" if @options[:verbose]
+    io = File.new(file)
+    scores = [ ]
+    io.each do |line|
+      next unless line =~ /TM-score=/
+      line.chomp!
+      scores << line[/TM-score= ([^ ]+) .*/, 1].to_f
+    end
+
+    @results[pair[0]] ||= { }
+    @results[pair[1]] ||= { }
+    @results[pair[0]][pair[1]] = self.method(TRANSFORMS[@options[:transform]]['call']).call(scores.max())
+    @results[pair[1]][pair[0]] = self.method(TRANSFORMS[@options[:transform]]['call']).call(scores.max())
+
+    # Add the last name to the @order array, which may not occur first in an input line
+    if @order.length < @results.keys.length
+      @results.keys.each do |k|
+        @order << k unless @order.index(k)
+      end
+    end
+  end
+rescue
+  warn "Failed to process file '#{file}': #{$!}, backtrace:\n\t#{$!.backtrace.join("\n\t")}"
+end
+
+# Print out the results
+self.method(FORMATS[@options[:format]]['call']).call()
