@@ -20,9 +20,14 @@ $VERBOSE = true
 
 require 'optparse'
 
-VERSION = "0.2"
+VERSION = "0.3"
 
 FORMATS = {
+  'tsv' => { 
+    'call' => :tsv_call, 
+    'desc' => 'Tab separated file',
+    'mandopts' => [ ]
+  },
   'splitstree' => { 
     'call' => :splitstree_call, 
     'desc' => 'SplitsTree Nexus matrix',
@@ -182,6 +187,23 @@ end
 
 def mean_score(values)
   values.inject(0.0) { |s, e| s + e } / values.size
+end
+
+def tsv_call()
+  puts "ref\t#{@order.join("\t")}"
+  str = ''
+  @order.each_with_index do |outer_t, i|
+    str += "#{outer_t}"
+    @order.each do |inner_t|
+      if outer_t == inner_t
+	str += "\t0.0"
+      else
+	str += "\t#{@results[outer_t][inner_t]}"
+      end
+    end
+    str += "\n"
+  end
+  puts str
 end
 
 def splitstree_call()
