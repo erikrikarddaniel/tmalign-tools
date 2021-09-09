@@ -13,7 +13,7 @@ all: tmalign2matrix
 clean:
 	@rm -rf *.out *.tmp err 
 
-tmalign2matrix: tmalign2matrix.00 tmalign2matrix.01 tmalign2matrix.02
+tmalign2matrix: tmalign2matrix.00 tmalign2matrix.01 tmalign2matrix.02 tmalign2matrix.03
 
 tmalign2matrix.00:
 	@../scripts/tmalign2matrix --transform=minus *.tmalign > $@.out
@@ -25,4 +25,8 @@ tmalign2matrix.01:
 
 tmalign2matrix.02:
 	@../scripts/tmalign2matrix --score=mean --transform=minus *.tmalign > $@.out
+	@$(CHECK)
+
+tmalign2matrix.03:
+	@../scripts/tmalign2matrix --score=min --transform=minus *.tmalign > $@.out
 	@$(CHECK)

@@ -51,6 +51,11 @@ SCORES = {
     'desc' => 'Select the maximum similarity score of the two',
     'mandopts' => [ ]
   },
+  'min' => {
+    'call' => :min_score,
+    'desc' => 'Select the minimum similarity score of the two',
+    'mandopts' => [ ]
+  },
   'mean' => {
     'call' => :mean_score,
     'desc' => 'Select the mean similarity score of the two',
@@ -169,6 +174,10 @@ end
 
 def max_score(values)
   values.max()
+end
+
+def min_score(values)
+  values.min()
 end
 
 def mean_score(values)
