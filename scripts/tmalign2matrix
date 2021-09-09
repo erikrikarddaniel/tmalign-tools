@@ -20,6 +20,8 @@ $VERBOSE = true
 
 require 'optparse'
 
+VERSION = "0.2"
+
 FORMATS = {
   'splitstree' => { 
     'call' => :splitstree_call, 
@@ -43,6 +45,20 @@ TRANSFORMS = {
 }
 DEFAULT_TRANSFORM = 'minus'
 
+SCORES = {
+  'max' => {
+    'call' => :max_score,
+    'desc' => 'Select the maximum similarity score of the two',
+    'mandopts' => [ ]
+  },
+  'mean' => {
+    'call' => :mean_score,
+    'desc' => 'Select the mean similarity score of the two',
+    'mandopts' => [ ]
+  },
+}
+DEFAULT_SCORE = 'max'
+
 def formats(format = false)
   if format and FORMATS[format]
     "#{format}: #{FORMATS[format]['desc']}\n"
@@ -63,9 +79,20 @@ def transforms(transform = false)
   end
 end
 
+def scores(score = false)
+  if score and SCORES[score]
+    "#{score}: #{SCORES[score]['desc']}\n"
+  elsif score and score != ''
+    "Format #{score} not supported\n"
+  else
+    "Supported scores:\n\t" + SCORES.keys.sort.map { |f| "#{f}#{ f == DEFAULT_SCORE ? ' * default *' : ''}" }.join("\n\t") + "\n"
+  end
+end
+
 @options = {
   :format => DEFAULT_FORMAT,
-  :transform => DEFAULT_TRANSFORM
+  :transform => DEFAULT_TRANSFORM,
+  :score => DEFAULT_SCORE
 }
 opt_parser = OptionParser.new do |opts|
   opts.banner = <<BANNER
@@ -98,8 +125,22 @@ BANNER
     exit 0
   end
 
-  opts.on "-v", "--verbose", "Be verbose"  do |v| 
+  opts.on "--score=score", "Transformation of EC value to perform, default #{DEFAULT_SCORE}" do |v|
+    @options[:score] = v
+  end
+
+  opts.on "--scores[=v]", "Lists available output scores or, with a score as parameter, writes a description of a score"  do |v|
+    puts scores v 
+    exit 0
+  end
+
+  opts.on "--verbose", "Be verbose"  do |v| 
     @options[:verbose] = v 
+  end
+
+  opts.on "--version", "This info"  do 
+    puts "tmalign2matrix version #{VERSION}"
+    exit 0
   end
 end
 
@@ -124,6 +165,14 @@ end
 
 def minus_transform(value)
   1 - value.to_f
+end
+
+def max_score(values)
+  values.max()
+end
+
+def mean_score(values)
+  values.inject(0.0) { |s, e| s + e } / values.size
 end
 
 def splitstree_call()
@@ -188,11 +237,12 @@ begin
       line.chomp!
       scores << line[/TM-score= ([^ ]+) .*/, 1].to_f
     end
+    score = self.method(SCORES[@options[:score]]['call']).call(scores)
 
     @results[pair[0]] ||= { }
     @results[pair[1]] ||= { }
-    @results[pair[0]][pair[1]] = self.method(TRANSFORMS[@options[:transform]]['call']).call(scores.max())
-    @results[pair[1]][pair[0]] = self.method(TRANSFORMS[@options[:transform]]['call']).call(scores.max())
+    @results[pair[0]][pair[1]] = self.method(TRANSFORMS[@options[:transform]]['call']).call(score)
+    @results[pair[1]][pair[0]] = self.method(TRANSFORMS[@options[:transform]]['call']).call(score)
 
     # Add the last name to the @order array, which may not occur first in an input line
     if @order.length < @results.keys.length
